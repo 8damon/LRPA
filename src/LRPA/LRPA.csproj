@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Logitech.RawPeripheralAccess</AssemblyName>
+    <RootNamespace>Logitech.RawPeripheralAccess</RootNamespace>
+    <Description>Minimal WinAPI-shaped access to the Logitech G HUB virtual mouse.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LRPA.ProtocolDiscovery\LRPA.ProtocolDiscovery.csproj" />
+  </ItemGroup>
+</Project>

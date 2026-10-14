@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Logitech.RawPeripheralAccess.ProtocolDiscovery</AssemblyName>
+    <RootNamespace>Logitech.RawPeripheralAccess.ProtocolDiscovery</RootNamespace>
+    <Description>Fast, fail-closed Logitech virtual-bus protocol fingerprinting.</Description>
+  </PropertyGroup>
+</Project>
