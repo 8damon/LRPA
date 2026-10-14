@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="src/LRPA.ProtocolDiscovery/LRPA.ProtocolDiscovery.csproj" />
   <Project Path="src/LRPA/LRPA.csproj" />
+  <Project Path="src/LRPA.Native/LRPA.Native.csproj" />
   <Project Path="src/LRPA.Cli/LRPA.Cli.csproj" />
   <Project Path="examples/SendInputMigration/SendInputMigration.csproj" />
   <Project Path="examples/TypedController/TypedController.csproj" />

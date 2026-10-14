@@ -3,3 +3,7 @@ obj/
 .vs/
 *.user
 *.suo
+artifacts/
+target/
+out/
+/bindings/rust/lrpa/Cargo.lock

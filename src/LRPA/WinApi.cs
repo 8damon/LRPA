@@ -73,39 +73,21 @@ public static class LRPA
     public const uint XBUTTON2 = 0x0002;
     public const int WHEEL_DELTA = 120;
 
-    private const uint SupportedFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN |
-        MOUSEEVENTF_LEFTUP | MOUSEEVENTF_RIGHTDOWN | MOUSEEVENTF_RIGHTUP |
-        MOUSEEVENTF_MIDDLEDOWN | MOUSEEVENTF_MIDDLEUP | MOUSEEVENTF_XDOWN |
-        MOUSEEVENTF_XUP | MOUSEEVENTF_WHEEL | MOUSEEVENTF_HWHEEL |
-        MOUSEEVENTF_MOVE_NOCOALESCE;
-
     private static readonly object Sync = new();
-    private static LrpaController? _controller;
-    private static MouseButtons _buttons;
+    private static LrpaInputSession? _session;
 
-    public static bool IsInitialized { get { lock (Sync) return _controller is not null; } }
-    public static DriverProtocol? Protocol { get { lock (Sync) return _controller?.Protocol; } }
+    public static bool IsInitialized { get { lock (Sync) return _session is not null; } }
+    public static DriverProtocol? Protocol { get { lock (Sync) return _session?.Protocol; } }
 
     public static bool Initialize(LrpaOptions? options = null)
     {
         lock (Sync)
         {
-            if (_controller is not null)
-                return _controller.OwnsMouse;
+            if (_session is not null)
+                return _session.Created;
 
-            var controller = new LrpaController(options);
-            try
-            {
-                var created = controller.TryCreateMouse();
-                _controller = controller;
-                _buttons = MouseButtons.None;
-                return created;
-            }
-            catch
-            {
-                controller.Dispose();
-                throw;
-            }
+            _session = new LrpaInputSession(options);
+            return _session.Created;
         }
     }
 
@@ -119,16 +101,14 @@ public static class LRPA
         if (inputCount == 0)
             return 0;
 
-        for (var index = 0; index < inputCount; index++)
-            Validate(inputs[index], index);
+        var source = inputs.AsSpan(0, checked((int)inputCount));
+        LrpaInputSession.ValidateInputs(source);
 
         lock (Sync)
         {
-            if (_controller is null)
+            if (_session is null)
                 Initialize();
-            for (var index = 0; index < inputCount; index++)
-                SendMouse(inputs[index].U.mi);
-            return inputCount;
+            return _session!.SendInput(source);
         }
     }
 
@@ -148,106 +128,11 @@ public static class LRPA
     {
         lock (Sync)
         {
-            if (_controller is null)
+            if (_session is null)
                 return;
 
-            try
-            {
-                if (_buttons != MouseButtons.None)
-                    _controller.SetButtons(MouseButtons.None);
-            }
-            finally
-            {
-                _buttons = MouseButtons.None;
-                _controller.Dispose();
-                _controller = null;
-            }
+            _session.Dispose();
+            _session = null;
         }
-    }
-
-    private static void Validate(INPUT input, int index)
-    {
-        if (input.type != INPUT_MOUSE)
-            throw new NotSupportedException($"inputs[{index}] has type {input.type}; only INPUT_MOUSE is supported.");
-
-        var flags = input.U.mi.dwFlags;
-        if ((flags & (MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK)) != 0)
-            throw new NotSupportedException("LRPA supports relative mouse input only.");
-        if ((flags & ~SupportedFlags) != 0)
-            throw new NotSupportedException($"Unsupported mouse flags 0x{flags & ~SupportedFlags:X8}.");
-    }
-
-    private static void SendMouse(MOUSEINPUT input)
-    {
-        var down = MouseButtons.None;
-        var up = MouseButtons.None;
-        if ((input.dwFlags & MOUSEEVENTF_LEFTDOWN) != 0) down |= MouseButtons.Button1;
-        if ((input.dwFlags & MOUSEEVENTF_LEFTUP) != 0) up |= MouseButtons.Button1;
-        if ((input.dwFlags & MOUSEEVENTF_RIGHTDOWN) != 0) down |= MouseButtons.Button2;
-        if ((input.dwFlags & MOUSEEVENTF_RIGHTUP) != 0) up |= MouseButtons.Button2;
-        if ((input.dwFlags & MOUSEEVENTF_MIDDLEDOWN) != 0) down |= MouseButtons.Button3;
-        if ((input.dwFlags & MOUSEEVENTF_MIDDLEUP) != 0) up |= MouseButtons.Button3;
-
-        if ((input.dwFlags & (MOUSEEVENTF_XDOWN | MOUSEEVENTF_XUP)) != 0)
-        {
-            var xButtons = (ushort)(input.mouseData >> 16);
-            var translated = MouseButtons.None;
-            if ((xButtons & XBUTTON1) != 0) translated |= MouseButtons.Button4;
-            if ((xButtons & XBUTTON2) != 0) translated |= MouseButtons.Button5;
-            if ((input.dwFlags & MOUSEEVENTF_XDOWN) != 0) down |= translated;
-            if ((input.dwFlags & MOUSEEVENTF_XUP) != 0) up |= translated;
-        }
-
-        var both = down & up;
-        _buttons |= down;
-        _buttons &= ~(up & ~both);
-
-        var x = (input.dwFlags & MOUSEEVENTF_MOVE) != 0 ? input.dx : 0;
-        var y = (input.dwFlags & MOUSEEVENTF_MOVE) != 0 ? input.dy : 0;
-        var wheel = (input.dwFlags & MOUSEEVENTF_WHEEL) != 0
-            ? ToHidDetents(unchecked((short)(input.mouseData >> 16)))
-            : 0;
-        var horizontal = (input.dwFlags & MOUSEEVENTF_HWHEEL) != 0
-            ? ToHidDetents(unchecked((short)(input.mouseData >> 16)))
-            : 0;
-
-        do
-        {
-            _controller!.Submit(new MouseReport(
-                _buttons,
-                TakeAxis(ref x),
-                TakeAxis(ref y),
-                TakeWheel(ref wheel),
-                TakeWheel(ref horizontal)));
-        }
-        while (x != 0 || y != 0 || wheel != 0 || horizontal != 0);
-
-        if (both == MouseButtons.None)
-            return;
-
-        _buttons &= ~both;
-        _controller!.SetButtons(_buttons);
-    }
-
-    private static int ToHidDetents(short delta)
-    {
-        if (delta == 0)
-            return 0;
-        var magnitude = Math.Max(1, (Math.Abs((int)delta) + WHEEL_DELTA / 2) / WHEEL_DELTA);
-        return Math.Sign(delta) * magnitude;
-    }
-
-    private static short TakeAxis(ref int value)
-    {
-        var chunk = Math.Clamp(value, -32767, 32767);
-        value -= chunk;
-        return checked((short)chunk);
-    }
-
-    private static sbyte TakeWheel(ref int value)
-    {
-        var chunk = Math.Clamp(value, -127, 127);
-        value -= chunk;
-        return checked((sbyte)chunk);
     }
 }

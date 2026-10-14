@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>LRPA.Native</AssemblyName>
+    <RootNamespace>Logitech.RawPeripheralAccess.Native</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <StackTraceSupport>false</StackTraceSupport>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LRPA\LRPA.csproj" />
+  </ItemGroup>
+  <Target Name="CopyImportLibraryToPublishDirectory" AfterTargets="Publish">
+    <PropertyGroup>
+      <NativeImportLibrary>$(TargetDir)native\$(AssemblyName).lib</NativeImportLibrary>
+    </PropertyGroup>
+    <Copy SourceFiles="$(NativeImportLibrary)"
+          DestinationFolder="$(PublishDir)"
+          Condition="Exists('$(NativeImportLibrary)')" />
+  </Target>
+</Project>

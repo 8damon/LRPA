@@ -1,8 +1,8 @@
 # Logitech Raw Peripheral Access
 
-LRPA is a small, unofficial C# SDK for sending relative mouse reports through the virtual HID bus installed by Logitech G HUB.
+LRPA is a small, unofficial SDK for sending relative mouse reports through the virtual HID bus installed by Logitech G HUB.
 
-It provides a WinAPI-shaped `SendInput` replacement, a typed controller, and a separate fail-closed module that recovers the private IOCTL family from the installed driver.
+It provides .NET, C, C++, and Rust interfaces, plus a separate fail-closed module that recovers the private IOCTL family from the installed driver.
 
 > LRPA is independent research software. It is not produced, endorsed, or supported by Logitech.
 
@@ -17,6 +17,12 @@ It provides a WinAPI-shaped `SendInput` replacement, a typed controller, and a s
 ```powershell
 dotnet build .\LRPA.slnx -c Release
 dotnet run --project .\src\LRPA.Cli -- self-test
+```
+
+Build the self-contained native x64 DLL:
+
+```powershell
+dotnet publish .\src\LRPA.Native -c Release -r win-x64 -o .\artifacts\native\win-x64
 ```
 
 ## SendInput migration
@@ -61,13 +67,32 @@ Unsupported or ambiguous driver images fail before the bus receives an IOCTL. Fi
 
 The report-submission path performs no scanning, reuses one bus handle, uses stack buffers, and has no third-party dependencies, reflection, middleware, or service framework.
 
+## Native FFI
+
+`LRPA.Native.dll` is a NativeAOT shared library with a stable C ABI. It does not require a separately installed .NET runtime.
+
+```c
+#include "lrpa.h"
+
+lrpa_handle mouse;
+lrpa_open(NULL, &mouse, NULL);
+lrpa_move(mouse, 64, -16);
+lrpa_close(mouse);
+```
+
+C++ can include `lrpa.hpp` for an RAII wrapper. The Rust binding provides a safe `Controller` whose `Drop` implementation closes the handle.
+
 ## Documentation
 
 - [Integration guide](docs/INTEGRATION.md)
 - [SDK/API reference](docs/API.md)
+- [C/C++/Rust FFI guide](docs/FFI.md)
 - [SendInput migration example](examples/SendInputMigration/Program.cs)
 - [Typed controller example](examples/TypedController/Program.cs)
 - [Read-only protocol inspection](examples/ProtocolInspection/Program.cs)
+- [C example](examples/c/main.c)
+- [C++ example](examples/cpp/main.cpp)
+- [Rust example](examples/rust/src/main.rs)
 
 ## Provenance
 

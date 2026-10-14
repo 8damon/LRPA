@@ -51,6 +51,18 @@ The `LRPA` class exports the standard relative mouse flags, X-button identifiers
 | `RemoveOwnedMouse()` | Remove only this controller's child |
 | `ForceRemoveMouse()` | Explicitly remove the global child |
 
+## `LrpaInputSession`
+
+Instance-based WinAPI translation used by both the static .NET façade and native FFI handles.
+
+| Member | Purpose |
+|---|---|
+| `Created` | Whether this session created the driver-global mouse |
+| `Protocol` | Validated protocol profile |
+| `SendInput(ReadOnlySpan<INPUT>)` | Validate and translate WinAPI-shaped input |
+| `Submit(MouseReport)` | Submit a typed report and track button state |
+| `Dispose()` | Release buttons and ownership-aware device cleanup |
+
 ## `MouseReport`
 
 | Offset | Width | Value |
@@ -98,3 +110,5 @@ New recovery strategies belong in `src/LRPA.ProtocolDiscovery/Fingerprints`. The
 | `InvalidOperationException` | Interface or device lifecycle conflict |
 | `NotSupportedException` | Unsupported WinAPI input type or mode |
 | Argument exception | Invalid size, count, flag, or bounded value |
+
+The native ABI, result codes, layouts, and language bindings are documented in [FFI.md](FFI.md).

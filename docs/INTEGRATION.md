@@ -96,3 +96,5 @@ Deploy both assemblies:
 - `Logitech.RawPeripheralAccess.ProtocolDiscovery.dll`
 
 Do not copy or redistribute Logitech drivers. LRPA uses the locally installed G HUB component.
+
+For native C, C++, or Rust integration, publish `LRPA.Native` and follow [FFI.md](FFI.md). Native consumers deploy only `LRPA.Native.dll`; its managed dependencies are compiled into the NativeAOT image.
