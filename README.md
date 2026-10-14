@@ -1,6 +1,6 @@
 # Logitech Raw Peripheral Access (LRPA)
 
-LRPA is a small, unofficial user-mode hardware abstraction layer (HAL) and SDK for sending relative mouse reports through the virtual HID bus installed by Logitech G HUB.
+LRPA is a small, unofficial user-mode hardware abstraction layer (HAL) and SDK that sends relative mouse reports through Logitech G HUB's virtual HID bus without setting `LLMHF_INJECTED` on the tested stack, while returning substantially faster than `SendInput` in local benchmarks.
 
 It provides .NET, C, C++, and Rust interfaces, plus a separate fail-closed module that recovers the private IOCTL family from the installed driver.
 
