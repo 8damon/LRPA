@@ -1,6 +1,6 @@
-# Logitech Raw Peripheral Access
+# Logitech Raw Peripheral Access (LRPA)
 
-LRPA is a small, unofficial SDK for sending relative mouse reports through the virtual HID bus installed by Logitech G HUB.
+LRPA is a small, unofficial user-mode hardware abstraction layer (HAL) and SDK for sending relative mouse reports through the virtual HID bus installed by Logitech G HUB.
 
 It provides .NET, C, C++, and Rust interfaces, plus a separate fail-closed module that recovers the private IOCTL family from the installed driver.
 
@@ -11,6 +11,50 @@ It provides .NET, C, C++, and Rust interfaces, plus a separate fail-closed modul
 - Windows x64
 - .NET 10
 - Logitech G HUB and `logi_joy_bus_enum.x64.sys`
+
+## Observed input paths
+
+### Conventional `SendInput`
+
+```mermaid
+flowchart LR
+    App[Application] --> API["user32!SendInput"]
+    API --> NtUser["win32u / NtUserSendInput"]
+    NtUser --> Win32k[win32k input injection]
+    Win32k -->|keyboard event| KeyHook["WH_KEYBOARD_LL<br/>LLKHF_INJECTED = 1"]
+    Win32k -->|mouse event| MouseHook["WH_MOUSE_LL<br/>LLMHF_INJECTED = 1"]
+    Win32k --> Queue[Windows input queue]
+```
+
+### LRPA virtual-HID path
+
+```mermaid
+flowchart LR
+    App[Application] --> HAL["LRPA user-mode HAL"]
+    HAL -->|validated DeviceIoControl| Bus["logi_joy_bus_enum.x64.sys"]
+    Bus --> Vhid[Logitech virtual HID mouse]
+    Vhid --> Stack[HIDClass / MouClass]
+    Stack --> MouseHook["WH_MOUSE_LL<br/>LLMHF_INJECTED = 0<br/>(observed)"]
+    Stack --> Raw["Raw Input<br/>hDevice != 0<br/>VID_046D and PID_C231"]
+    Stack --> Queue[Windows input queue]
+```
+
+LRPA does not call `user32!SendInput`. On the tested Windows and Logitech driver versions, its event entered through the virtual HID device and the low-level mouse hook received `flags == 0`. That is an observed compatibility result, not a Windows API guarantee. Raw Input still identifies the Logitech virtual device, so a clear hook flag is not proof of physical origin and must not be treated as a security boundary.
+
+LRPA currently implements mouse reports only. It makes no claim about `LLKHF_INJECTED` for an LRPA keyboard path.
+
+## Performance versus `SendInput`
+
+A controlled local test alternated relative mouse moves through both paths after LRPA initialization. A dedicated `WH_MOUSE_LL` thread timestamped hook delivery. Each path had 25 warmups and 500 measured operations.
+
+| Path | Call-return median | Start-to-hook median | Start-to-hook p95 | Hook classification |
+|---|---:|---:|---:|---|
+| `user32!SendInput` | 457.9 us | 129.3 us | 260.6 us | `LLMHF_INJECTED` set |
+| `LrpaController.Move` | 8.3 us | 93.7 us | 290.4 us | `LLMHF_INJECTED` clear |
+
+LRPA returned to its caller about **55x sooner** in this run, but that is not a 55x end-to-end latency improvement. Mean start-to-hook latency was effectively equal (`140.6 us` for `SendInput`, `140.7 us` for LRPA); LRPA had the lower median while `SendInput` had the lower p95. The result primarily reflects different completion semantics: the `SendInput` hook callback occurred a median `328.7 us` before the call returned, while LRPA returned a median `85.7 us` before its virtual-HID event reached the hook.
+
+These figures characterize one machine and installed hook/driver stack. They do not measure USB polling or application consumption and should be repeated on any target configuration where latency matters.
 
 ## Build
 
